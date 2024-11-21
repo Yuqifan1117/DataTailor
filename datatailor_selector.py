@@ -21,7 +21,7 @@ def final_select():
     final_num_cho = []
 
     sum = 0.
-    s1 = torch.load("informative.pt")
+    s1 = torch.load("informativeness.pt")
     t1 = torch.load("tau.pt")
 
     for i in range(0, 12):
@@ -59,7 +59,6 @@ def final_select():
         _res.append(__res)
     
     v = s1
-    r = torch.load("temporary.pt")
 
     representativeness = torch.load("representativeness.pt")
     uniqueness = torch.load("uniqueness.pt")
@@ -71,7 +70,6 @@ def final_select():
     
     selected_DATATAILOR = []
     
-    s = torch.load("nom_s.pt").numpy()  
     R = torch.tensor([0] * num)
     for i in range(0, num):
         R[i] = len(json_info[i]["conversations"]) / 2

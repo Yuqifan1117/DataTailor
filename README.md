@@ -21,8 +21,8 @@ Mastering Collaborative Multi-modal Data Selection: A Focus on *Informativeness*
     conda activate datatailor
     pip install -r requirements.txt
     ```
-3. Prepare candidate datasets (1. [MiniGPT4-Instruction](https://github.com/Vision-CAIR/MiniGPT-4/blob/main/dataset/README_2_STAGE.md), 2. [LLaVA-665K](https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/blob/main/llava_v1_5_mix665k.json), 3. [Mplug-OWL-264K](https://github.com/X-PLUG/mPLUG-Owl/tree/main/mPLUG-Owl), 4. [Bunny-695K](https://huggingface.co/datasets/BoyaWu10/Bunny-v1_0-data/tree/main/finetune))
-4. DataTailor framework
+2. Prepare candidate datasets (1. [MiniGPT4-Instruction], 2. [LLaVA-665K], 3. [Mplug-OWL-264K], 4. [Bunny-695K])
+3. DataTailor framework
    1. informativeness
     ```
     bash datatailor.sh

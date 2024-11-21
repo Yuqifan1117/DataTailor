@@ -53,7 +53,7 @@ from transformers.utils import (
 from transformers.models.llama.configuration_llama import LlamaConfig
 
 length = torch.tensor([0.] * 665298)
-informative = torch.tensor([0.] * 665298)
+informativeness = torch.tensor([0.] * 665298)
 tau = torch.tensor([0.] * 665298)
 total_global_hidden_state = dict()
 
@@ -1056,7 +1056,7 @@ class LlamaModel(LlamaPreTrainedModel):
             total_global_hidden_state_cpu = valid_hidden_states[-1,:].cpu()
             total_global_hidden_state[data_id] = total_global_hidden_state_cpu
             length[data_id] = L_i
-            informative[data_id] = instance_score
+            informativeness[data_id] = instance_score
             tau[data_id] = max_s
         if len(total_global_hidden_state) == 665298:
             sorted_keys = sorted(total_global_hidden_state)
@@ -1064,8 +1064,8 @@ class LlamaModel(LlamaPreTrainedModel):
             total_feature = torch.stack(sorted_list, dim=0)
             torch.save(total_feature, f'total_global_llava665k_hidden_state.pt')
             torch.save(length, f'length.pt')
-            torch.save(informative, f'length.pt')
-            torch.save(tau, f'length.pt')
+            torch.save(informativeness, f'informativeness.pt')
+            torch.save(tau, f'tau.pt')
         hidden_states = self.norm(hidden_states) # the hidden state feature for output
 
 
