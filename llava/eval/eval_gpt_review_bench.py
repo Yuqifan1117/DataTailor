@@ -88,8 +88,6 @@ if __name__ == '__main__':
         else:
             cap_str = inst['caption']
 
-
-        print(ques, ans1, ans2)
         category = 'llava_bench_' + json.loads(ques_js)['category']
         if category in rule_dict:
             rule = rule_dict[category]

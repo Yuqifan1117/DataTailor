@@ -1005,8 +1005,6 @@ class LlamaModel(LlamaPreTrainedModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
-        local_rank = torch.distributed.get_rank()
-        log.basicConfig(filename=f'instance_level_value_all_665k_mapping_split_1_{local_rank}.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filemode='a')
         for i, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -1039,35 +1037,37 @@ class LlamaModel(LlamaPreTrainedModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-        for i, data_id in enumerate(data_ids):
-            if causal_mask is None:
-                valid_hidden_states = hidden_states[i]
-            else:
-                valid_hidden_states = hidden_states[i][causal_mask[i], :]
-            u, s, v = torch.svd(valid_hidden_states.float()) # singular value is in s
-            L_i = valid_hidden_states.shape[0]
-            normalized_s = F.normalize(s, dim=0, p=1)
-            sum_s = torch.sum(s, dim=0).item()
-            mean_s = sum_s / L_i
-            max_s = torch.max(normalized_s).item()
-            instance_score = 0
-            for j in range(normalized_s.shape[0]):
-                instance_score += -normalized_s[j].item() * math.log(normalized_s[j].item())
-            total_global_hidden_state_cpu = valid_hidden_states[-1,:].cpu()
-            total_global_hidden_state[data_id] = total_global_hidden_state_cpu
-            length[data_id] = L_i
-            informativeness[data_id] = instance_score
-            tau[data_id] = max_s
-        if len(total_global_hidden_state) == 665298:
-            sorted_keys = sorted(total_global_hidden_state)
-            sorted_list = [total_global_hidden_state[key] for key in sorted_keys]
-            total_feature = torch.stack(sorted_list, dim=0)
-            torch.save(total_feature, f'total_global_llava665k_hidden_state.pt')
-            torch.save(length, f'length.pt')
-            torch.save(informativeness, f'informativeness.pt')
-            torch.save(tau, f'tau.pt')
-        hidden_states = self.norm(hidden_states) # the hidden state feature for output
-
+        with torch.no_grad():
+            for i, data_id in enumerate(data_ids):
+                if causal_mask is None:
+                    valid_hidden_states = hidden_states[i]
+                else:
+                    valid_hidden_states = hidden_states[i][causal_mask[i], :]
+                u, s, v = torch.svd(valid_hidden_states.float()) # singular value is in s
+                L_i = valid_hidden_states.shape[0]
+                normalized_s = F.normalize(s, dim=0, p=1)
+                sum_s = torch.sum(s, dim=0).item()
+                mean_s = sum_s / L_i
+                max_s = torch.max(normalized_s).item()
+                instance_score = 0
+                for j in range(normalized_s.shape[0]):
+                    instance_score += -normalized_s[j].item() * math.log(normalized_s[j].item())
+                total_global_hidden_state_cpu = valid_hidden_states[-1,:].cpu()
+                total_global_hidden_state[data_id] = total_global_hidden_state_cpu
+                length[data_id] = L_i
+                informativeness[data_id] = instance_score
+                tau[data_id] = max_s
+            
+            if len(total_global_hidden_state) == 665298:
+                sorted_keys = sorted(total_global_hidden_state)
+                sorted_list = [total_global_hidden_state[key] for key in sorted_keys]
+                total_feature = torch.stack(sorted_list, dim=0)
+                torch.save(total_feature, f'total_global_llava665k_hidden_state.pt')
+                torch.save(length, f'length.pt')
+                torch.save(informativeness, f'informativeness.pt')
+                torch.save(tau, f'tau.pt')
+            
+        hidden_states = self.norm(hidden_states)
 
         if output_hidden_states:
             all_hidden_states += (hidden_states,)

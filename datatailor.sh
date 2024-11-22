@@ -16,7 +16,7 @@ deepspeed --master_port 29501 llava/train/train_mem.py \
     --bf16 True \
     --output_dir ./checkpoints/llava-v1.5-7b-lora-665k-selection \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 8 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \

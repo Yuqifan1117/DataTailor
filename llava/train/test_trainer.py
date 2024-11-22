@@ -2650,6 +2650,9 @@ class Trainer:
         checkpoints_sorted = self._sorted_checkpoints(use_mtime=False, output_dir=run_dir)
 
         # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint and process allowed to save.
+        print(self.args.should_save)
+        print(self.state.best_model_checkpoint)
+        print(self.args.save_total_limit)
         if self.args.should_save and self.state.best_model_checkpoint is not None and self.args.save_total_limit == 1:
             for checkpoint in checkpoints_sorted:
                 if not os.path.samefile(checkpoint, self.state.best_model_checkpoint):
@@ -3427,23 +3430,23 @@ class Trainer:
         Return:
             `torch.Tensor`: The tensor with training loss on this batch.
         """
-        # model.train()
-        # inputs = self._prepare_inputs(inputs)
-
-        # if is_sagemaker_mp_enabled():
-        #         loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps)
-        #         return loss_mb.reduce_mean().detach().to(self.args.device)
-        # with self.compute_loss_context_manager():
-        #     loss = self.compute_loss(model, inputs)
-
-        # if self.args.n_gpu > 1:
-        #     loss = loss.mean()  # mean() to average on multi-gpu parallel training
-
-        # if self.use_apex:
-        #     with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-        #         scaled_loss.backward()
-        # else:
-        #     self.accelerator.backward(loss)
+#        model.train()
+#        inputs = self._prepare_inputs(inputs)
+#
+#        if is_sagemaker_mp_enabled():
+#                loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps)
+#                return loss_mb.reduce_mean().detach().to(self.args.device)
+#        with self.compute_loss_context_manager():
+#            loss = self.compute_loss(model, inputs)
+#
+#        if self.args.n_gpu > 1:
+#            loss = loss.mean()  # mean() to average on multi-gpu parallel training
+#
+#        if self.use_apex:
+#            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+#                scaled_loss.backward()
+#        else:
+#            self.accelerator.backward(loss)
 
 
         # only forward without gradient desent
@@ -3457,7 +3460,6 @@ class Trainer:
         with self.compute_loss_context_manager():
             with torch.no_grad():
                 loss = self.compute_loss(model, inputs)
-
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
 

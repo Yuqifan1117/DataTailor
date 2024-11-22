@@ -53,6 +53,7 @@ IS_TOKENIZER_GREATER_THAN_0_14 = version.parse(tokenizers.__version__) >= versio
 @dataclass
 class ModelArguments:
     model_name_or_path: Optional[str] = field(default="facebook/opt-125m")
+    lora_path: Optional[str] = field(default=None)
     version: Optional[str] = field(default="v0")
     freeze_backbone: bool = field(default=False)
     tune_mm_mlp_adapter: bool = field(default=False)
@@ -663,7 +664,6 @@ class LazySupervisedDataset(Dataset):
                  data_args: DataArguments):
         super(LazySupervisedDataset, self).__init__()
         list_data_dict = json.load(open(data_path, "r"))
-
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
         self.list_data_dict = list_data_dict
@@ -727,7 +727,8 @@ class LazySupervisedDataset(Dataset):
             has_image=('image' in self.list_data_dict[i]))
         if isinstance(i, int):
             data_dict = dict(input_ids=data_dict["input_ids"][0],
-                             labels=data_dict["labels"][0])
+                             labels=data_dict["labels"][0],
+                             data_id=i) # split_1 need +332649
 
         # image exist in the data
         if 'image' in self.list_data_dict[i]:
@@ -746,8 +747,8 @@ class DataCollatorForSupervisedDataset(object):
     tokenizer: transformers.PreTrainedTokenizer
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances]
-                                  for key in ("input_ids", "labels"))
+        input_ids, labels, data_ids = tuple([instance[key] for instance in instances]
+                                  for key in ("input_ids", "labels", "data_id"))
         input_ids = torch.nn.utils.rnn.pad_sequence(
             input_ids,
             batch_first=True,
@@ -760,6 +761,7 @@ class DataCollatorForSupervisedDataset(object):
         batch = dict(
             input_ids=input_ids,
             labels=labels,
+            data_ids=data_ids,
             attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
         )
 
@@ -933,7 +935,6 @@ def train(attn_implementation=None):
         if training_args.freeze_mm_mlp_adapter:
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = False
-
         if training_args.bits in [4, 8]:
             model.get_model().mm_projector.to(dtype=compute_dtype, device=training_args.device)
 
@@ -943,7 +944,7 @@ def train(attn_implementation=None):
         model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
 
-    if training_args.bits in [4, 8]:
+    if training_args.bits in [4, 8]:  # quantization
         from peft.tuners.lora import LoraLayer
         for name, module in model.named_modules():
             if isinstance(module, LoraLayer):
@@ -958,11 +959,46 @@ def train(attn_implementation=None):
 
     data_module = make_supervised_data_module(tokenizer=tokenizer,
                                               data_args=data_args)
+    
+    if training_args.lora_enable and model_args.lora_path is not None:
+        rank0_print("Adding LoRA adapters...")
+        lora_cfg_pretrained = LlavaConfig.from_pretrained(model_args.lora_path)
+        print('Loading LLaVA from base model...')
+        model = LlavaLlamaForCausalLM.from_pretrained(
+            model_args.model_name_or_path, 
+            config=lora_cfg_pretrained,                 
+            cache_dir=training_args.cache_dir,
+            attn_implementation=attn_implementation,
+            torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+            **bnb_model_from_pretrained_args
+        )
+        token_num, tokem_dim = model.lm_head.out_features, model.lm_head.in_features
+        if model.lm_head.weight.shape[0] != token_num:
+            model.lm_head.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
+            model.model.embed_tokens.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
+        rank0_print('Loading additional LLaVA weights...')
+        non_lora_trainables = torch.load(os.path.join(model_args.lora_path, 'non_lora_trainables.bin'), map_location='cpu')
+   
+        non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
+        if any(k.startswith('model.model.') for k in non_lora_trainables):
+            non_lora_trainables = {(k[6:] if k.startswith('model.') else k): v for k, v in non_lora_trainables.items()}
+        model.load_state_dict(non_lora_trainables, strict=False)
+
+        from peft import PeftModel
+        rank0_print('Loading LoRA weights...')
+        model = PeftModel.from_pretrained(model, model_args.lora_path)
+        rank0_print('Merging LoRA weights...')
+        model = model.merge_and_unload()
+#    for name, p in model.named_parameters():
+#        p.requires_grad = False
+#    list(model.parameters())[-1].requires_grad = True
+#    for name, p in model.named_parameters():
+#        if p.requires_grad:
+#            print(name, p)
     trainer = LLaVATrainer(model=model,
                     tokenizer=tokenizer,
                     args=training_args,
                     **data_module)
-
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:
