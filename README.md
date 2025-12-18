@@ -56,6 +56,9 @@ liyunfei<sup>3</sup>, Juncheng Li<sup>1</sup>, Siliang Tang<sup>1</sup>, Yueting
     python datatailor_selector.py
     ```
    5. Selected data fine-tuning
+      
+      Notice: This framework **only allows data selection**. The following script only provides hyperparameters. For actual training, please deploy using the official training code of llava
+
     ```
     bash finetune_lora_stage2_7b.sh
     ```
